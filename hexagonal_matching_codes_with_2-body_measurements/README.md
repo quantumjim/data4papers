@@ -1,1 +1,1 @@
-This paper is due to be arXived soon.
+ArXived paper at https://arxiv.org/abs/2109.13308.

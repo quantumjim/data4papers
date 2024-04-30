@@ -23,9 +23,6 @@ import rustworkx as rx
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, transpile
 from qiskit.circuit.library import XGate, RZGate
 from qiskit.transpiler import PassManager, InstructionDurations
-from qiskit_ibm_provider.transpiler.passes.scheduling import DynamicCircuitInstructionDurations
-from qiskit_ibm_provider.transpiler.passes.scheduling import PadDynamicalDecoupling
-from qiskit_ibm_provider.transpiler.passes.scheduling import ALAPScheduleAnalysis
 
 from qiskit_qec.circuits.code_circuit import CodeCircuit
 from qiskit_qec.utils import DecodingGraphEdge, DecodingGraphNode
@@ -1352,50 +1349,6 @@ class ArcCircuit(CodeCircuit):
 
         # transpile to backend
         circuits = transpile(circuits, backend, initial_layout=initial_layout)
-
-        # then dynamical decoupling if needed
-        if any(echo_num):
-            if self.run_202:
-                durations = DynamicCircuitInstructionDurations().from_backend(backend)
-            else:
-                durations = InstructionDurations().from_backend(backend)
-
-            # set up the dd sequences
-            dd_sequences = []
-            spacings = []
-            for j in range(2):
-                if echo[j] == "X":
-                    dd_sequences.append([XGate()] * echo_num[j])
-                    spacings.append(None)
-                elif echo[j] == "XZX":
-                    dd_sequences.append([XGate(), RZGate(np.pi), XGate()] * echo_num[j])
-                    d = 1.0 / (2 * echo_num[j] - 1 + 1)
-                    spacing = [d / 2] + ([0, d, d] * echo_num[j])[:-1] + [d / 2]
-                    for _ in range(2):
-                        spacing[0] += 1 - sum(spacing)
-                    spacings.append(spacing)
-                else:
-                    dd_sequences.append(None)
-                    spacings.append(None)
-
-            # add in the dd sequences
-            for j, dd_sequence in enumerate(dd_sequences):
-                if dd_sequence:
-                    if echo_num[j]:
-                        qubits = self.qubits[j]
-                    else:
-                        qubits = None
-                    pm = PassManager(
-                        [
-                            ALAPScheduleAnalysis(durations),
-                            PadDynamicalDecoupling(
-                                durations, dd_sequence, qubits=qubits, spacings=spacings[j]
-                            ),
-                        ]
-                    )
-                    circuits = pm.run(circuits)
-            if not isinstance(circuits, list):
-                circuits = [circuits]
 
         return {basis: circuits[j] for j, basis in enumerate(bases)}
 
